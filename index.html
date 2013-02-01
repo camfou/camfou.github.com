@@ -1,46 +1,231 @@
-<!DOCTYPE html>
-<html>
+## Club Med RMC documentation
+**Club Med List Templates** — *Altima — 2012*
 
-  <head>
-    <meta charset='utf-8' />
-    <meta http-equiv="X-UA-Compatible" content="chrome=1" />
-    <meta name="description" content="Camfou.github.com : Test gh-pages" />
+### Introduction
 
-    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+Plusieurs modifications ont été apportées. 
 
-    <title>Camfou.github.com</title>
-  </head>
+1. Mootools **1.2.5** a été mis à jour vers la **1.4.5** (mode de compatibilité activé) afin de résoudre des problèmes de conflits et des méthodes dépréciées par les développeurs MooTools. 
+2. La RMC se base désormais sur **Craft.js**, un framework (qui comble les lacunes des navigateurs et égalise ainsi les écarts entre ces derniers). La documentation est disponible ici : [http://mlbli.github.com/craft/](). Afin de simplifier la maintenance, le framework utilise les méthodes **EcmaScript 5**. 
+3. Le flux principal ne se base désormais plus sous la technologie **XML** mais sur du **JSONP**. 
+4. Les formulaires de filtre dans la colonne de droite ont été restructurés. 
 
-  <body>
+### Code style guidelines
 
-    <!-- HEADER -->
-    <div id="header_wrap" class="outer">
-        <header class="inner">
-          <a id="forkme_banner" href="https://github.com/camfou">View on GitHub</a>
+#### HTML
 
-          <h1 id="project_title">Camfou.github.com</h1>
-          <h2 id="project_tagline">Test gh-pages</h2>
+* Scripts appelés en fin de page, juste avant `</body>`. Permet d'accélérer le parsing HTML et la vitesse de chargement perçue. 
+* Organisation des formulaires comme il suit :
 
-        </header>
-    </div>
+```
+<form action="/" method="GET" id="form-id">
+  <label><input type="checkbox" name="name-1" value="1">Text</label>
+  <label><input type="checkbox" name="name-1" value="2">Text</label>
+</form>
+```
+**plutôt que **
 
-    <!-- MAIN CONTENT -->
-    <div id="main_content_wrap" class="outer">
-      <section id="main_content" class="inner">
-        <h1>camfou.github.com</h1>
+```
+<form action="/" method="GET" id="form-id">
+  <input type="checkbox" name="name-1" id="name-1"><label for="name-1">Text</label>
+  <input type="checkbox" name="name-2" id="name-2"><label for="name-2">Text</label>
+</form>
+```
+En effet, tant que les elements du formulaire sont relatifs à la même information, utiliser un attribut `name` commun simplifie la serialization du `<form>`. De plus, cela réduit considérablement les risques de duplication d'attribut `id` dans le DOM.
 
-<p>Test gh-pages</p>
-      </section>
-    </div>
+* Minifier si possible le HTML envoyé au client : moins de whitespace only `textNode`, parsing du DOM plus rapide. 
 
-    <!-- FOOTER  -->
-    <div id="footer_wrap" class="outer">
-      <footer class="inner">
-        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
-      </footer>
-    </div>
 
-    
 
-  </body>
-</html>
+#### JavaScript
+
+* Namespace du traitement des listes JS 
+
+```
+window (root)
+  |_ clubMed (object)
+    |_ fullList (array) ## result of clubMed.parseData(o)
+    |_ list (array)
+    |_ filterList (function)
+    |_ orderList (function)
+    |_ parseData (function)
+```
+
+* Programmation JS orientée fonctionnel. 
+
+**ex** : 
+
+```
+[1,2,3,4].map(function(item){return item * item})
+```
+
+**plutôt que** 
+
+```
+var array = [1,2,3,4], 
+    mappedArray = [];
+
+for(var i = 0, l = array.length; i < l; i++) {
+  mappedArray[i] = array[i] * array[i];
+}
+```
+
+* Indentation à **2 espaces** dans les scripts. 
+* Chaînes de caractères entre double-quotes. 
+* Grosses opérations de modification du DOM (filtrage de la liste, tri, ajout d'éléments, loops d'insertions etc.) à opérer dans un `documentFragment` (se crée à l'aide du shorthand `DOM.createFragment()` de l'API Craft.js ou `document.createDocumentFragment()` en JS natif).
+* Utilisation au maximum de l'attribut `className` et de déclarations CSS plutôt que de l'attribut et de l'objet `style`. 
+* Préférer les transitions CSS3 (avec accélération graphique) aux transitions JavaScript qui manipulent l'attribut `style` avec `window.setInterval` ou `window.setTimeout`. 
+* N'utiliser les functions de type `eval` ou `new Function` que pour le parsing `JSON` sur les navigateurs obsolètes. Préférer un appel JSONP à un appel JSON + AJAX dans la mesure du possible.
+* Utiliser `Function#curry` pour éviter de se répéter. 
+* Pour manipuler un `Object` en tant que liste de données, utiliser le constructor `Hash()`.
+* Cacher en variable les éléments du DOM réutilisés par la suite. 
+* Ne pas optimiser le code dans la source, sinon pour des micro-optimisations (ex : `number >> 0` ou `~~number` plutôt que `parseInt(number, 0)`
+* Ne pas passer d'arguments non utilisés dans une function. (ex: `list.map(function(item, index, array){return item.scrollHeight - pageYOffset})`)
+* Pas de curly-brackets (`{}`) pour des déclarations conditionnelles à une action. (ex : `if(foo) bar();`)
+* Utiliser `return` si les actions qui suivent ne concernent pas l'itération en cours. 
+
+  **ex :** 
+
+```  
+function(foo){
+  if(!foo) return;
+  return foo * window.bar
+}
+```
+
+* Chaque script doit avoir un scope vérouillé dans `;(function(){ /* script */ })()`, `!function(){ /* script */}();` ou bien `;(function(){ /* script */}).call(this)`.
+* Les variables utilisée dans plusieurs scripts distincts doivent être placée dans la variable globale `window.clubMed` et non directement stockées dans `window` en tant que globales. 
+* Les seules globales autorisées, outre `clubMed` sont les constructors utilisés dans plusieurs scripts. 
+* Utiliser `Constructor.prototype` plutôt que d'inclure les méthodes dans `this` lors de la contruction de l'objet (évite la saturation de la mémoire vive). 
+* 
+#### Préconisations
+
+##### Utilisation de CoffeeScript pour la maintenance du JavaScript
+
+Modification des sources **CoffeeScript** puis export en JavaScript à l'aide de la command-line **coffee -c**. 
+
+ex : `coffee -c myScript` exporte *myScript.js* depuis *myScript.coffee*
+
+##### Minification des scripts à l'aide d'uglifyjs
+
+Installation de la command-line : `sudo npm install uglify-js -g`
+
+
+### Data statiques
+
+#### Map flash
+
+En raison du fait que la map *Flash* renvoie une chaîne de caractères et non un nombre, il est nécessaire de placer en début de page : 
+
+```  
+window.clubMed.zones = {
+  "Afrique - Moyen Orient": 1,
+  "Amérique du Nord - Amérique Centrale": 2,
+  "Amérique du Sud": 3,
+  "Antilles - Caraïbes": 4,
+  "Asie": 5,
+  "Europe": 6,
+  "Océan Indien": 7,
+  "Océanie Pacifique": 8,
+  "Alpes": 9
+}
+```
+
+Veiller cependant au fait de toujours déclarer 
+
+	window.clubMed = window.clubMed || {}
+
+avant. 
+
+#### Langue 
+
+Appeler **après** `/2012/js/lists.js` et avant l'appel de flux dynamique **JSON** un JSONP contenant les données linguistiques suivant cette structure :
+
+```
+clubMed.setLang({
+    "libelleOffreSpeciale" : "Offre Spéciale",
+    "libelleVoyageur" : "par adulte",
+    "libelleTransport" : "avec transport",
+    "libelleAncienPrix" : "au lieu de ",
+    "libelleTooltip" : "Prix TTC par adulte*, pour {{nombreNuit}} , en {{logement}}, sur la base d\'une occupation double. Départ le {{dateDepart}}.",
+    "libelleTooltipTransport" : "Vol A/R depuis {{libelleVilleAeroport}}",
+    "libelleInclutReduction" : "* Inclut la réduction {{libellePromotion}}",
+    "libelleDecouvrirOffre" : "Découvrir l’offre",
+    "libelleErreurComparaison" : "Veuillez sélectionner entre 2 et 3 villages pour la comparaison. "
+})
+```
+
+**Note** : `{{variable}}` correspond à la variable relative à l'item présent dans `clubMed.fullList.fluxListe.offres[n]`.
+  
+
+### Flux JSONP
+
+#### Appel
+
+	<script type="text/javascript" src="/2012/json/lists.js" id="load-json-list"></script>
+	
+L'attribut `id` permet de recharger le flux (au moyen de la cartouche de réservation) sans ajouter un `<script>` supplémentaire : le `<script/>` présent est supprimé avant le chargement du second. 
+	
+#### JSONP wrapper
+
+```
+clubMed.parseData({ /* object */ })
+```
+
+#### JSON structure
+
+```
+clubMed.parseData({
+  "fluxListe": {
+    "offres": [{
+      "lieuSejour": "AEXC",
+      "montantPromoInclue": "10 410,00 €",
+      "montantHorsPromo": "11 474,50 €",
+      "montantBrutPromoInclue": 10410,
+      "logement": "C2+",
+      "codePeriode":"?",
+      "reduction": "-9 %", //ou reductionAbs
+      "nombreNuit": 7,
+      "dateDepart": "2012-10-23T13:47:55.690+02:00",
+      "libellePromotion": "AGAPRO",
+      "villageAdulte":true,
+      "libelleVilleAeroport": "Paris \/ Paris Orly",
+      "village": {
+        "libelleVillage": "Agadir",
+        "decriptifCourtVillage": "La douceur du Sud marocain face à la vague de l’Atlantique",
+        "codeDestination": "008",
+        "libelleDestination": "Côtes d'Afrique & Moyen Orient",
+        "libelleZoneGeographique": "Afrique",
+        "codeZoneGeographique": 1,
+        "libellePays": "France",
+        "codeNiveauConfort": 3,
+        "libelleConfort": "Villages confort 3 Tridents",
+        "codeTypeSegmentation": "Soleil_4T",
+        "picto5T": "Soleil_5T",
+        "pathImageCartouche": "\/path\/to\/imageSaison.jpg",
+        "lienFicheVillage": "\/path\/to\/village",
+        "espace5T": true,
+        "activites": [1, 25, 42],
+        "encadrement": [1, 2, 5, 8],
+        "pictos": {
+          "entry": [{
+            "key": "width_children",
+            "value": "Villages avec clubs enfants et\/ou ados : Famille, couples, amis"
+          }, {
+            "key": "golf",
+            "value": "Golf"
+          }, {
+            "key": "tennis",
+            "value": "tennis"
+          }, {
+            "key": "spa_wellness",
+            "value": "Spa et Bien-être"
+          }]
+        }
+      }
+    }]
+  }
+});
+```
+
+**Note** : Ajout de la propriété `codePeriode` au flux. 
